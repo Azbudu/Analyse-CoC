@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CoC Stats">
+<meta name="theme-color" content="#14212e">
+<title>CoC Stats</title>
+<style>
+:root{--bg:#14212e;--pan:#1f3347;--pan2:#2a4561;--tx:#eaf2f8;--mu:#93a9bd;--gold:#f2c14e;--eli:#d46be8;--bad:#ff8a7a}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 "Avenir Next",Avenir,"Segoe UI",system-ui,sans-serif}
+body{padding:env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom))}
+header{padding:18px 16px 6px}
+h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.5px}
+h1 span{color:var(--gold)}
+main{padding:8px 14px;max-width:640px;margin:0 auto}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--pan);padding-bottom:env(safe-area-inset-bottom);border-top:2px solid var(--pan2)}
+nav button{flex:1;background:none;border:0;color:var(--mu);font:600 14px inherit;padding:14px 4px}
+nav button.on{color:var(--gold);box-shadow:inset 0 3px 0 var(--gold)}
+form{display:flex;gap:8px;margin:10px 0}
+input{flex:1;min-width:0;background:var(--pan);border:2px solid var(--pan2);border-radius:10px;color:var(--tx);padding:12px;font-size:16px}
+.btn{background:var(--gold);color:#2b1d00;border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px}
+.btn.alt{background:var(--pan2);color:var(--tx)}
+.card{background:var(--pan);border-radius:14px;padding:14px;margin:10px 0;border-left:5px solid var(--eli)}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card b{font-size:18px}.hv{color:var(--gold);font-weight:800}
+.sub{color:var(--mu);font-size:13px;margin-top:2px}
+.stats{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-weight:600}
+.stats i{font-style:normal;color:var(--mu);font-weight:400;font-size:13px;margin-left:3px}
+.det{margin-top:10px;padding-top:10px;border-top:1px solid var(--pan2)}
+.bar{height:8px;background:var(--bg);border-radius:4px;margin:3px 0 9px;overflow:hidden}
+.bar div{height:100%;background:var(--eli)}
+.rm{background:none;border:0;color:var(--bad);padding:6px 0;margin-top:6px;font-size:13px}
+.msg{color:var(--mu);text-align:center;padding:24px 8px}.err{color:var(--bad)}
+.m{display:flex;gap:10px;padding:10px 4px;border-bottom:1px solid var(--pan2);align-items:center}
+.m .n{width:26px;color:var(--mu);text-align:right}.m .x{flex:1;min-width:0}.m .x b{font-size:16px}
+.m .t{text-align:right;font-weight:700}
+</style></head><body>
+<header><h1>CoC <span>Stats</span></h1></header>
+<main id="v"></main>
+<nav id="nav"></nav>
+<script>
+const BASE="https://cocproxy.royaleapi.dev/v1";
+const $=s=>document.querySelector(s);
+const rd=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
+const wr=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let key=rd("key",""),tab="me",lists={me:rd("me",[]),friends:rd("friends",[])},clanTag=rd("clan","");
+const TABS=[["me","Mes comptes"],["clan","Mon clan"],["friends","Amis"],["set","Réglages"]];
+const norm=t=>t.trim().toUpperCase().replace(/^#/,"").replace(/O/g,"0");
+async function api(p){
+  if(!key)throw new Error("Ajoute ta clé dans Réglages.");
+  let r;try{r=await fetch(BASE+p,{headers:{Authorization:"Bearer "+key}})}
+  catch(e){throw new Error("Connexion impossible. Vérifie ton réseau, ou le navigateur bloque l’appel au proxy.")}
+  if(r.status==403)throw new Error("Clé refusée. Vérifie qu’elle a été créée avec l’IP 45.79.218.79.");
+  if(r.status==404)throw new Error("Tag introuvable.");
+  if(r.status==429)throw new Error("Trop de requêtes, réessaie dans un instant.");
+  if(!r.ok)throw new Error("Erreur "+r.status);
+  return r.json();
+}
+const num=n=>(n??0).toLocaleString("fr-FR");
+function card(p,tag,list){
+  const h=(p.heroes||[]).filter(x=>x.village=="home").map(x=>`<div class="row"><span>${esc(x.name)}</span><span>${x.level}/${x.maxLevel}</span></div><div class="bar"><div style="width:${Math.round(100*x.level/x.maxLevel)}%"></div></div>`).join("");
+  return `<div class="card" data-tag="${tag}" data-list="${list}"><div class="row"><b>${esc(p.name)}</b><span class="hv">HV ${p.townHallLevel}</span></div>
+  <div class="sub">${esc(p.tag)} — ${p.clan?esc(p.clan.name):"Sans clan"}</div>
+  <div class="stats"><span>🏆 ${num(p.trophies)}<i>record ${num(p.bestTrophies)}</i></span><span>⭐ ${num(p.warStars)}<i>étoiles de guerre</i></span><span>⚔️ ${num(p.attackWins)}<i>attaques</i></span><span>🛡️ ${num(p.defenseWins)}<i>défenses</i></span><span>🎁 ${num(p.donations)}<i>dons</i></span></div>
+  <div class="det" hidden>${h||'<div class="sub">Aucun héros.</div>'}<button class="rm" data-rm="${tag}" data-l="${list}">Retirer ce compte</button></div></div>`;
+}
+async function render(){
+  $("#nav").innerHTML=TABS.map(([k,l])=>`<button class="${k==tab?"on":""}" data-tab="${k}">${l}</button>`).join("");
+  const v=$("#v");
+  if(tab=="set"){
+    v.innerHTML=`<div class="card"><b>Clé développeur Supercell</b><div class="sub">Elle reste uniquement dans ce navigateur.</div>
+    <form id="fk"><input id="ik" type="password" placeholder="Colle ta clé" value="${esc(key)}" autocomplete="off"><button class="btn">Enregistrer</button></form></div>`;
+    $("#fk").onsubmit=e=>{e.preventDefault();key=$("#ik").value.trim();wr("key",key);tab="me";render()};
+    return;
+  }
+  if(tab=="clan"){
+    v.innerHTML=`<form id="fc"><input id="ic" placeholder="Tag du clan, ex. #2PP" value="${esc(clanTag)}" autocapitalize="characters"><button class="btn">Voir</button></form><div id="out"></div>`;
+    $("#fc").onsubmit=e=>{e.preventDefault();clanTag=$("#ic").value;wr("clan",clanTag);loadClan()};
+    if(clanTag)loadClan();else $("#out").innerHTML='<div class="msg">Entre le tag de ton clan pour voir ses membres.</div>';
+    return;
+  }
+  const L=lists[tab];
+  v.innerHTML=`<form id="fa"><input id="ia" placeholder="Tag du joueur, ex. #P0LYJC8C" autocapitalize="characters"><button class="btn">Ajouter</button></form><div id="out"><div class="msg">Chargement…</div></div>`;
+  $("#fa").onsubmit=async e=>{e.preventDefault();const t=norm($("#ia").value);if(!t)return;
+    try{await api("/players/%23"+t);if(!L.includes(t)){L.push(t);wr(tab,L)}render()}catch(er){$("#out").innerHTML=`<div class="msg err">${esc(er.message)}</div>`}};
+  if(!L.length){$("#out").innerHTML='<div class="msg">Aucun joueur pour l’instant. Ajoute un tag ci-dessus.</div>';return}
+  const res=await Promise.allSettled(L.map(t=>api("/players/%23"+t)));
+  $("#out").innerHTML=res.map((r,i)=>r.status=="fulfilled"?card(r.value,L[i],tab):`<div class="card"><b>#${L[i]}</b><div class="sub err">${esc(r.reason.message)}</div></div>`).join("");
+}
+async function loadClan(){
+  const o=$("#out");o.innerHTML='<div class="msg">Chargement…</div>';
+  try{const c=await api("/clans/%23"+norm(clanTag));
+    const m=[...c.memberList].sort((a,b)=>b.trophies-a.trophies);
+    o.innerHTML=`<div class="card"><div class="row"><b>${esc(c.name)}</b><span class="hv">Niv. ${c.clanLevel}</span></div><div class="sub">${c.members} membres, ${num(c.warWins)} guerres gagnées</div></div>`+
+    m.map((x,i)=>`<div class="m"><span class="n">${i+1}</span><div class="x"><b>${esc(x.name)}</b><div class="sub">HV ${x.townHallLevel}, ${esc(x.role)}</div></div><div class="t">🏆 ${num(x.trophies)}<div class="sub">dons ${num(x.donations)} / reçus ${num(x.donationsReceived)}</div></div></div>`).join("");
+  }catch(er){o.innerHTML=`<div class="msg err">${esc(er.message)}</div>`}
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-tab]");if(t){tab=t.dataset.tab;render();return}
+  const r=e.target.closest("[data-rm]");if(r){const l=r.dataset.l;lists[l]=lists[l].filter(x=>x!=r.dataset.rm);wr(l,lists[l]);render();return}
+  const c=e.target.closest(".card[data-tag]");if(c){const d=c.querySelector(".det");d.hidden=!d.hidden}
+});
+if(!key)tab="set";
+render();
+</script></body></html>
